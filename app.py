@@ -3,7 +3,7 @@ from docxtpl import DocxTemplate
 import io
 from datetime import datetime
 
-# 1. PAGE SETUP (Must be the first Streamlit command)
+# 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
 
 # --- CUSTOM GREEN THEME CSS ---
@@ -45,7 +45,6 @@ st.markdown("<h4 style='text-align: center; color: #555;'>Consular & Immigration
 # --- INITIALIZE VARIABLES ---
 context = {}
 template_file = ""
-today_date = datetime.now().strftime("%d %B %Y")
 
 # --- STEP 1: CATEGORY SELECTION ---
 st.write("---")
@@ -59,6 +58,10 @@ category = st.radio(
 # --- STEP 2: FORM INPUTS ---
 st.write("---")
 st.subheader(f"📝 STEP 2: ENTER {category.upper()} DETAILS")
+
+# DYNAMIC DATE SELECTION (This fills the {{date}} tag)
+doc_date = st.date_input("Document Date (Select today or a custom date)", value=datetime.now())
+formatted_date = doc_date.strftime("%d %B %Y")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -120,6 +123,7 @@ elif category == "Visa Transfer":
     }
 
 # --- MERGE ALL CONTEXT ---
+# All variables here will be available to ALL templates
 final_context = {
     "name": name,
     "name_capital": name.upper() if name else "",
@@ -130,7 +134,7 @@ final_context = {
     "gender1": g1,
     "gender2": g2,
     "gender3": g3,
-    "date": today_date
+    "date": formatted_date  # This populates {{date}} in your Word files
 }
 final_context.update(context)
 
@@ -151,7 +155,7 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
             bio.seek(0)
             
             st.balloons()
-            st.success(f"Generated for {name}")
+            st.success(f"Generated successfully for {name}")
             st.download_button(
                 label="📥 Download Word Document",
                 data=bio,
@@ -159,4 +163,4 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error: {e}. Please ensure the template file '{template_file}' exists in the folder.")
