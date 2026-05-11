@@ -70,7 +70,6 @@ with col2:
     pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)")
 
 gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True)
-# Mapping gender tags used in templates
 g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
 # --- CATEGORY SPECIFIC LOGIC ---
@@ -78,19 +77,19 @@ if category == "Visa":
     sub_visa = st.selectbox("Purpose of Visa Extension", ["30 Days Extension", "Student", "Employment", "Marriage"])
     
     if sub_visa == "30 Days Extension":
-        template_file = "visa_30days.docx"  # Fixed name to match your file
+        template_file = "visa_30days.docx"
         leave_on = st.text_input("Expected Date of Departure")
         context = {"leave_on": leave_on}
         
     elif sub_visa == "Student":
         template_file = "visa_student.docx"
-        program = st.text_input("Program of Study (e.g., Undergraduate Degree)")
+        program = st.text_input("Program of Study")
         place = st.text_input("Name of University/School")
-        loc = st.text_input("Location of School (e.g., Bangkok)")
+        loc = st.text_input("Location of School")
         context = {
             "program": program, 
-            "place of study": place, 
-            "location of study": loc
+            "place_of_study": place, 
+            "location_of_study": loc
         }
 
     elif sub_visa == "Employment":
@@ -102,12 +101,12 @@ if category == "Visa":
         d_issue = st.text_input("Date of Passport Issue")
         p_expiry = st.text_input("Passport Expiration Date")
         context = {
-            "place of issue": p_issue, 
-            "country of issue": c_issue, 
-            "date of issue": d_issue, 
-            "passport expiration": p_expiry, 
-            "place of work": p_work, 
-            "location of work": l_work
+            "place_of_issue": p_issue, 
+            "country_of_issue": c_issue, 
+            "date_of_issue": d_issue, 
+            "passport_expiration": p_expiry, 
+            "place_of_work": p_work, 
+            "location_of_work": l_work
         }
 
     elif sub_visa == "Marriage":
@@ -118,35 +117,36 @@ elif category == "Land Transport":
     template_file = "land_transport.docx"
     land_purpose = st.selectbox("Action Requested", ["transferring a vehicle as requested", "registering a driving license as requested"])
     address = st.text_area("Resident Address in Thailand")
-    context = {"current address": address, "purpose": land_purpose}
+    context = {"current_address": address, "purpose": land_purpose}
 
 elif category == "Visa Transfer":
     template_file = "visa_transfer.docx"
-    p_issue = st.text_input("Place of Issue (New Passport)")
+    p_issue = st.text_input("Place of Issue")
     d_issue = st.text_input("Date of Issue (New Passport)")
     p_expiry = st.text_input("Expiration Date (New Passport)")
     old_pp = st.text_input("Old Passport Number")
     old_pp_exp = st.text_input("Old Passport Expiration Date")
     context = {
-        "place of issue": p_issue, 
-        "date of issue": d_issue, 
-        "passport expiration": p_expiry, 
-        "old passport": old_pp, 
-        "old passport expiration": old_pp_exp
+        "place_of_issue": p_issue, 
+        "date_of_issue": d_issue, 
+        "passport_expiration": p_expiry, 
+        "old_passport": old_pp, 
+        "old_passport_expiration": old_pp_exp
     }
 
-# --- MERGE ALL CONTEXT ---
+# --- FINAL CONTEXT MERGE ---
+# All keys now use underscores to match your updated .docx templates
 final_context = {
     "name": name,
-    "name capital": name.upper() if name else "",
+    "name_capital": name.upper() if name else "",
     "passport": passport,
     "dob": dob,
     "pob": pob,
-    "gender": g1,      # Mapping {{gender}}
-    "gender1": g1,     # Mapping {{gender1}}
-    "gender2": g2,     # Mapping {{gender2}}
-    "gender3": g3,     # Mapping {{gender3}}
-    "date": today_date # Mapping {{date}}
+    "gender": g1,
+    "gender1": g1,
+    "gender2": g2,
+    "gender3": g3,
+    "date": today_date
 }
 final_context.update(context)
 
@@ -157,7 +157,7 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
     if not name or not passport:
         st.error("Missing Information: Name and Passport Number are mandatory.")
     elif not template_file:
-        st.error("Template file path is not defined.")
+        st.error("Template file not found.")
     else:
         try:
             doc = DocxTemplate(template_file)
@@ -176,4 +176,5 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
         except Exception as e:
-            st.error(f"Error: {e}. Check if '{template_file}' exists in the project folder.")
+            st.error(f"Error: {e}")
+            st.info(f"Make sure the placeholder in {template_file} uses underscores (e.g. {{name_capital}} instead of {{name capital}}).")
