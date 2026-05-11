@@ -9,7 +9,6 @@ st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", la
 # --- CUSTOM GREEN THEME CSS ---
 st.markdown("""
     <style>
-    /* Main title color */
     .main-title {
         color: #008751;
         text-align: center;
@@ -17,12 +16,10 @@ st.markdown("""
         border-bottom: 3px solid #008751;
         padding-bottom: 10px;
     }
-    /* Subheader color */
     .stSubheader {
         color: #008751 !important;
         font-weight: bold;
     }
-    /* Button styling */
     div.stButton > button:first-child {
         background-color: #008751;
         color: white;
@@ -38,16 +35,12 @@ st.markdown("""
         color: white;
         border: 1px solid #008751;
     }
-    /* Radio button selection color */
-    div[data-baseweb="radio"] > div {
-        color: #008751 !important;
-    }
     </style>
-    """, unsafe_content_type=True)
+    """, unsafe_allow_html=True)
 
 # --- OFFICIAL HEADER ---
-st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK DOCUMENT GENERATING SYSTEM</h1>", unsafe_content_type=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>Consular & Immigration Department</h4>", unsafe_content_type=True)
+st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK DOCUMENT GENERATING SYSTEM</h1>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>Consular & Immigration Department</h4>", unsafe_allow_html=True)
 st.write("")
 
 # --- STEP 1: CATEGORY SELECTION ---
