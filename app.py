@@ -43,6 +43,11 @@ st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK DOCUMENT GENERATING S
 st.markdown("<h4 style='text-align: center; color: #555;'>Consular & Immigration Department</h4>", unsafe_allow_html=True)
 st.write("")
 
+# --- INITIALIZE VARIABLES ---
+context = {}
+template_file = ""
+today_date = datetime.now().strftime("%d %B %Y")
+
 # --- STEP 1: CATEGORY SELECTION ---
 st.subheader("🟢 STEP 1: CHOOSE MAIN CATEGORY")
 category = st.radio(
@@ -52,11 +57,6 @@ category = st.radio(
 )
 
 st.write("---")
-
-# --- INITIALIZE VARIABLES ---
-context = {}
-template_file = ""
-today_date = datetime.now().strftime("%d %B %Y")
 
 # --- STEP 2: FORM INPUTS ---
 st.subheader(f"📝 STEP 2: ENTER {category.upper()} DETAILS")
@@ -70,6 +70,7 @@ with col2:
     pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)")
 
 gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True)
+# Mapping gender tags used in templates
 g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
 # --- CATEGORY SPECIFIC LOGIC ---
@@ -77,16 +78,15 @@ if category == "Visa":
     sub_visa = st.selectbox("Purpose of Visa Extension", ["30 Days Extension", "Student", "Employment", "Marriage"])
     
     if sub_visa == "30 Days Extension":
-        template_file = "visa_days.docx"
+        template_file = "visa_30days.docx"  # Fixed name to match your file
         leave_on = st.text_input("Expected Date of Departure")
         context = {"leave_on": leave_on}
         
     elif sub_visa == "Student":
         template_file = "visa_student.docx"
-        program = st.text_input("Program of Study")
+        program = st.text_input("Program of Study (e.g., Undergraduate Degree)")
         place = st.text_input("Name of University/School")
-        loc = st.text_input("Location of School")
-        # Dictionary keys match {{place of study}} and {{location of study}}
+        loc = st.text_input("Location of School (e.g., Bangkok)")
         context = {
             "program": program, 
             "place of study": place, 
@@ -107,14 +107,12 @@ if category == "Visa":
             "date of issue": d_issue, 
             "passport expiration": p_expiry, 
             "place of work": p_work, 
-            "location of work": l_work,
-            "gender": g1,
-            "gender2": g2
+            "location of work": l_work
         }
 
     elif sub_visa == "Marriage":
         template_file = "visa_marriage.docx"
-        context = {} # Only uses global details like name, passport, gender
+        context = {} 
 
 elif category == "Land Transport":
     template_file = "land_transport.docx"
@@ -124,7 +122,7 @@ elif category == "Land Transport":
 
 elif category == "Visa Transfer":
     template_file = "visa_transfer.docx"
-    p_issue = st.text_input("Place of Issue")
+    p_issue = st.text_input("Place of Issue (New Passport)")
     d_issue = st.text_input("Date of Issue (New Passport)")
     p_expiry = st.text_input("Expiration Date (New Passport)")
     old_pp = st.text_input("Old Passport Number")
@@ -137,17 +135,18 @@ elif category == "Visa Transfer":
         "old passport expiration": old_pp_exp
     }
 
-# Combine global data with category-specific data
+# --- MERGE ALL CONTEXT ---
 final_context = {
     "name": name,
     "name capital": name.upper() if name else "",
     "passport": passport,
     "dob": dob,
     "pob": pob,
-    "gender1": g1,
-    "gender2": g2,
-    "gender3": g3,
-    "date": today_date
+    "gender": g1,      # Mapping {{gender}}
+    "gender1": g1,     # Mapping {{gender1}}
+    "gender2": g2,     # Mapping {{gender2}}
+    "gender3": g3,     # Mapping {{gender3}}
+    "date": today_date # Mapping {{date}}
 }
 final_context.update(context)
 
@@ -158,11 +157,12 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
     if not name or not passport:
         st.error("Missing Information: Name and Passport Number are mandatory.")
     elif not template_file:
-        st.error("Template file not found for this category.")
+        st.error("Template file path is not defined.")
     else:
         try:
             doc = DocxTemplate(template_file)
             doc.render(final_context)
+            
             bio = io.BytesIO()
             doc.save(bio)
             bio.seek(0)
@@ -176,4 +176,4 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
         except Exception as e:
-            st.error(f"Error: {e}. Ensure the file '{template_file}' is in the same folder.")
+            st.error(f"Error: {e}. Check if '{template_file}' exists in the project folder.")
