@@ -5,9 +5,9 @@ import zipfile
 import re
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from docx.oxml.ns import qn
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
@@ -29,15 +29,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SMART FONT ENGINE (Enforces Font Rules, Superscript, and Alignment) ---
-def apply_smart_font(paragraph, text, is_bold=False, is_underline=False, force_align=False, align_right=False):
-    # Handle Indentation and Alignment
-    if force_align:
+# --- SMART FONT ENGINE (Enforces Font Rules, Superscript, and Tab Alignment) ---
+def apply_smart_font(paragraph, text, is_bold=False, is_underline=False, is_header_block=False):
+    # If it's the Ref/Date block, we use a Tab Stop to align them together on the right
+    if is_header_block:
         paragraph.paragraph_format.left_indent = None
         paragraph.paragraph_format.first_line_indent = None
-    
-    if align_right:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT # Left align the text itself
+        # Add a tab stop at 4.5 inches (Adjustable) to push the start point to the right
+        tab_stops = paragraph.paragraph_format.tab_stops
+        tab_stops.add_tab_stop(Inches(4.5), WD_TAB_ALIGNMENT.LEFT)
+        text = "\t" + text # Add the tab character to jump to the start point
 
     # Split text to catch suffixes for superscripting (st, nd, rd, th)
     parts = re.split(r'(\d+)(st|nd|rd|th)', text)
@@ -158,22 +160,22 @@ with tab2:
                     update_next_issue = False
                     
                     for p in list(doc.paragraphs):
-                        # 1. Align the Reference line to TOP RIGHT
+                        # 1. Update Reference Line (Align Left-on-Right)
                         if ref_id in p.text:
-                            orig_ref = p.text; p.text = ""
-                            # force_align resets indents, align_right pushes to the right
-                            apply_smart_font(p, orig_ref, force_align=True, align_right=True)
+                            orig_ref = p.text.strip()
+                            p.text = ""
+                            apply_smart_font(p, orig_ref, is_header_block=True)
                             update_next_issue = True
                             continue
                         
-                        # 2. Align the Date line to TOP RIGHT (Immediately after Reference)
+                        # 2. Update Date Line (Align Left-on-Right to match line above)
                         if update_next_issue and len(p.text.strip()) > 0:
                             p.text = ""
-                            apply_smart_font(p, new_issue, force_align=True, align_right=True)
+                            apply_smart_font(p, new_issue, is_header_block=True)
                             update_next_issue = False
                             continue
                         
-                        # 3. Update visit month and apply Smart Font rules
+                        # 3. Update visit month
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
@@ -181,7 +183,7 @@ with tab2:
                             apply_smart_font(p, " ")
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
                         elif p.text.strip():
-                            # Standardize font for all other text
+                            # Standardize all other text (Thai 17 / English 13.5)
                             orig_p_text = p.text; p.text = ""
                             apply_smart_font(p, orig_p_text)
                     
