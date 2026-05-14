@@ -17,6 +17,7 @@ st.markdown("""
     .main-title { color: #008751; text-align: center; font-family: 'Arial Black', sans-serif; border-bottom: 3px solid #008751; padding-bottom: 10px; }
     .stSubheader { color: #008751 !important; font-weight: bold; }
     div.stButton > button:first-child { background-color: #008751; color: white; border-radius: 10px; border: none; height: 3em; width: 100%; font-weight: bold; font-size: 20px; }
+    [data-testid="stSidebar"] { background-color: #f0f2f6; border-right: 2px solid #008751; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -42,6 +43,11 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
             r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
             r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
 
+# --- TOP PRIORITY: DATE SELECTION ---
+st.sidebar.header("📅 GLOBAL SETTINGS")
+today_date = st.sidebar.date_input("Today's Date (Letter Issue Date)", value=datetime.now())
+formatted_date = today_date.strftime("%d %B %Y")
+
 # --- OFFICIAL HEADER ---
 st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK SYSTEM</h1>", unsafe_allow_html=True)
 
@@ -64,11 +70,9 @@ with tab1:
         dob = st.text_input("Date of Birth (e.g. 01/01/1990)")
     with col2:
         pob = st.text_input("Place of Birth (City/State)")
-        doc_date = st.date_input("Letter Issue Date ({{date}})", value=datetime.now())
         gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
-    # Pronoun Logic
-    # gender1: he/she | gender2: his/her | gender3: him/her
+    # Pronoun Logic strictly as requested
     if gender_choice == "Male":
         g1, g2, g3 = "he", "his", "him"
     else:
@@ -77,7 +81,7 @@ with tab1:
     st.write("---")
     st.subheader("🔵 STEP 2: CATEGORY SPECIFIC DETAILS")
     
-    # Context Dictionary with Global Date and Pronouns
+    # Context Dictionary with formatted date and pronouns
     final_context = {
         "name": name,
         "name_capital": name.upper() if name else "",
@@ -87,8 +91,8 @@ with tab1:
         "gender1": g1,
         "gender2": g2,
         "gender3": g3,
-        "gender": g1, # Fallback for templates using just {{gender}}
-        "date": doc_date.strftime("%d %B %Y") 
+        "gender": g1, 
+        "date": formatted_date  # Uses the 'Today Date' selected at the top
     }
 
     template_file = ""
@@ -118,8 +122,8 @@ with tab1:
     elif category == "Land Transport":
         template_file = "land_transport.docx"
         final_context["current_address"] = st.text_area("Current Address")
-        # Specific 2 choices for purpose
-        purpose_choice = st.selectbox("Purpose:", [
+        # Limited to your 2 requested choices
+        purpose_choice = st.selectbox("Purpose of Letter:", [
             "registering a driving license as requested", 
             "transferring a vehicle as requested"
         ])
@@ -136,38 +140,34 @@ with tab1:
     st.write("---")
     if st.button("💾 GENERATE DOCUMENT"):
         if not name or not passport:
-            st.error("Missing critical information: Name and Passport are required.")
+            st.error("Name and Passport Number are mandatory.")
         else:
             try:
                 doc = DocxTemplate(template_file)
                 doc.render(final_context)
                 bio = io.BytesIO()
                 doc.save(bio)
-                st.success(f"Document for {name} is ready!")
-                st.download_button("📥 Download", bio.getvalue(), f"{name}_{category.replace(' ', '_')}.docx")
+                st.success(f"Generated successfully with Issue Date: {formatted_date}")
+                st.download_button("📥 Download Document", bio.getvalue(), f"{name}_{category}.docx")
             except Exception as e:
-                st.error(f"Error: {e}. Please ensure '{template_file}' is uploaded to the server.")
+                st.error(f"Error: {e}. Ensure the template '{template_file}' is available.")
 
 # ==========================================
 # TAB 2: PROFESSIONAL BULK UPDATER
 # ==========================================
 with tab2:
     st.subheader("🏛️ Smart Prison Batch Updater")
-    
     col_a, col_b = st.columns(2)
     with col_a:
         ref_id = st.text_input("Reference No. Filter:", value="อีเอ็นบี/ซีเอ็น.07")
-        new_issue = st.text_input("Update Issue Date to:", value=datetime.now().strftime("%d %B %Y"))
-    
+        new_issue = st.text_input("New Issue Date (Thai/Eng):", value=formatted_date)
     with col_b:
-        new_visit = st.text_input("New Visit Details (Bold/Underline)", placeholder="มิถุนายน 2569 เวลา 12.00 น.")
+        new_visit = st.text_input("Visit Details:", placeholder="มิถุนายน 2569 เวลา 12.00 น.")
 
     files = st.file_uploader("Upload Word Docs", type=["docx"], accept_multiple_files=True)
 
-    if st.button("🚀 START BATCH PROCESS"):
-        if not files or not new_visit:
-            st.warning("Please upload files and provide the visit string.")
-        else:
+    if st.button("🚀 BATCH UPDATE"):
+        if files and new_visit:
             zip_buf = io.BytesIO()
             with zipfile.ZipFile(zip_buf, "w") as zip_f:
                 for f in files:
@@ -188,10 +188,7 @@ with tab2:
                             apply_smart_font(p, parts[0] + "ในเดือน")
                             apply_smart_font(p, " ")
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
-                    
                     out = io.BytesIO()
                     doc.save(out)
                     zip_f.writestr(f.name, out.getvalue())
-            
-            st.success("All files updated successfully.")
-            st.download_button("📥 Download Zip", zip_buf.getvalue(), "Updated_Documents.zip")
+            st.download_button("📥 Download Updated ZIP", zip_buf.getvalue(), "Updated_Docs.zip")
