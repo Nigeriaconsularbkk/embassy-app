@@ -64,104 +64,115 @@ with tab1:
         dob = st.text_input("Date of Birth (e.g. 01/01/1990)")
     with col2:
         pob = st.text_input("Place of Birth (City/State)")
-        doc_date = st.date_input("Document Issue Date", value=datetime.now())
-        gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True)
+        doc_date = st.date_input("Letter Issue Date ({{date}})", value=datetime.now())
+        gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
-    # Logic for Pronouns
-    # gender1: he/she, gender2: his/her, gender3: him/her
-    g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
+    # Pronoun Logic
+    # gender1: he/she | gender2: his/her | gender3: him/her
+    if gender_choice == "Male":
+        g1, g2, g3 = "he", "his", "him"
+    else:
+        g1, g2, g3 = "she", "her", "her"
 
     st.write("---")
     st.subheader("🔵 STEP 2: CATEGORY SPECIFIC DETAILS")
     
-    # Context Dictionary initialization
+    # Context Dictionary with Global Date and Pronouns
     final_context = {
-        "name": name, "name_capital": name.upper(), "passport": passport,
-        "dob": dob, "pob": pob, "gender1": g1, "gender2": g2, "gender3": g3,
-        "date": doc_date.strftime("%d %B %Y")
+        "name": name,
+        "name_capital": name.upper() if name else "",
+        "passport": passport,
+        "dob": dob,
+        "pob": pob,
+        "gender1": g1,
+        "gender2": g2,
+        "gender3": g3,
+        "gender": g1, # Fallback for templates using just {{gender}}
+        "date": doc_date.strftime("%d %B %Y") 
     }
 
     template_file = ""
 
-    # Dynamic Inputs based on Template
     if category == "Visa 30 Days Extension":
         template_file = "visa_30days.docx"
-        final_context["leave_on"] = st.text_input("Intended Leave Date (Thailand)")
+        final_context["leave_on"] = st.text_input("Intended Leave Date")
 
     elif category == "Visa Student":
         template_file = "visa_student.docx"
-        final_context["program"] = st.text_input("Program of Study (e.g., MBA)")
-        final_context["place_of_study"] = st.text_input("University/School Name")
-        final_context["location_of_study"] = st.text_input("City/Province of School")
+        final_context["program"] = st.text_input("Program of Study")
+        final_context["place_of_study"] = st.text_input("University Name")
+        final_context["location_of_study"] = st.text_input("Location (Province)")
 
     elif category == "Visa Employment":
         template_file = "visa_employment.docx"
-        final_context["place_of_work"] = st.text_input("Company/Employer Name")
-        final_context["location_of_work"] = st.text_input("Job Location (e.g. Bangkok)")
+        final_context["place_of_work"] = st.text_input("Company Name")
+        final_context["location_of_work"] = st.text_input("Work Location")
         final_context["place_of_issue"] = st.text_input("Passport Place of Issue")
         final_context["country_of_issue"] = st.text_input("Passport Country of Issue", value="Nigeria")
         final_context["date_of_issue"] = st.text_input("Passport Date of Issue")
-        final_context["passport_expiration"] = st.text_input("Passport Expiry Date")
+        final_context["passport_expiration"] = st.text_input("Passport Expiration Date")
 
     elif category == "Visa Marriage":
         template_file = "visa_marriage.docx"
-        # Uses standard common fields + gender tags
 
     elif category == "Land Transport":
         template_file = "land_transport.docx"
-        final_context["current_address"] = st.text_area("Current Residential Address in Thailand")
-        final_context["purpose"] = st.text_input("Specific Assistance Required (e.g., obtaining a driving license)")
+        final_context["current_address"] = st.text_area("Current Address")
+        # Specific 2 choices for purpose
+        purpose_choice = st.selectbox("Purpose:", [
+            "registering a driving license as requested", 
+            "transferring a vehicle as requested"
+        ])
+        final_context["purpose"] = purpose_choice
 
     elif category == "Visa Transfer":
         template_file = "visa_transfer.docx"
-        final_context["old_passport"] = st.text_input("Previous Passport Number")
-        final_context["old_passport_expiration"] = st.text_input("Previous Passport Expiry Date")
+        final_context["old_passport"] = st.text_input("Old Passport Number")
+        final_context["old_passport_expiration"] = st.text_input("Old Passport Expiration Date")
         final_context["place_of_issue"] = st.text_input("New Passport Place of Issue")
         final_context["date_of_issue"] = st.text_input("New Passport Date of Issue")
-        final_context["passport_expiration"] = st.text_input("New Passport Expiry Date")
+        final_context["passport_expiration"] = st.text_input("New Passport Expiration Date")
 
     st.write("---")
     if st.button("💾 GENERATE DOCUMENT"):
         if not name or not passport:
-            st.warning("Please enter at least Name and Passport Number.")
+            st.error("Missing critical information: Name and Passport are required.")
         else:
             try:
                 doc = DocxTemplate(template_file)
                 doc.render(final_context)
                 bio = io.BytesIO()
                 doc.save(bio)
-                st.success(f"Successfully generated {template_file} for {name}")
-                st.download_button("📥 Download Document", bio.getvalue(), f"{category.replace(' ', '_')}_{name}.docx")
+                st.success(f"Document for {name} is ready!")
+                st.download_button("📥 Download", bio.getvalue(), f"{name}_{category.replace(' ', '_')}.docx")
             except Exception as e:
-                st.error(f"Error: {e}. Check if {template_file} exists in your directory.")
+                st.error(f"Error: {e}. Please ensure '{template_file}' is uploaded to the server.")
 
 # ==========================================
-# TAB 2: PROFESSIONAL BULK UPDATER (PRISON)
+# TAB 2: PROFESSIONAL BULK UPDATER
 # ==========================================
 with tab2:
     st.subheader("🏛️ Smart Prison Batch Updater")
-    st.info("Use this to update multiple Thai-language prison visit letters at once.")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        ref_id = st.text_input("Search for Reference line:", value="อีเอ็นบี/ซีเอ็น.07")
-        new_issue = st.text_input("New Date of Issue (Thai/Eng)", value=datetime.now().strftime("%d %B %Y"))
+        ref_id = st.text_input("Reference No. Filter:", value="อีเอ็นบี/ซีเอ็น.07")
+        new_issue = st.text_input("Update Issue Date to:", value=datetime.now().strftime("%d %B %Y"))
     
     with col_b:
-        new_visit = st.text_input("New Month & Time Range", placeholder="มิถุนายน 2569 เวลา 12.00 - 15.00 น.")
+        new_visit = st.text_input("New Visit Details (Bold/Underline)", placeholder="มิถุนายน 2569 เวลา 12.00 น.")
 
     files = st.file_uploader("Upload Word Docs", type=["docx"], accept_multiple_files=True)
 
-    if st.button("🚀 BATCH UPDATE ALL"):
+    if st.button("🚀 START BATCH PROCESS"):
         if not files or not new_visit:
-            st.error("Please upload files and provide visit details.")
+            st.warning("Please upload files and provide the visit string.")
         else:
             zip_buf = io.BytesIO()
             with zipfile.ZipFile(zip_buf, "w") as zip_f:
                 for f in files:
                     doc = Document(f)
                     update_next = False
-                    
                     for p in list(doc.paragraphs):
                         if ref_id in p.text:
                             update_next = True
@@ -171,28 +182,16 @@ with tab2:
                             apply_smart_font(p, new_issue)
                             update_next = False
                             continue
-                        
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
                             apply_smart_font(p, parts[0] + "ในเดือน")
                             apply_smart_font(p, " ")
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
-
-                    for table in doc.tables:
-                        for row in table.rows:
-                            for cell in row.cells:
-                                for p in cell.paragraphs:
-                                    if "ในเดือน" in p.text:
-                                        parts = p.text.split("ในเดือน", 1)
-                                        p.text = ""
-                                        apply_smart_font(p, parts[0] + "ในเดือน")
-                                        apply_smart_font(p, " ")
-                                        apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
-
+                    
                     out = io.BytesIO()
                     doc.save(out)
                     zip_f.writestr(f.name, out.getvalue())
             
-            st.success("Batch Complete!")
-            st.download_button("📥 Download Updated ZIP", zip_buf.getvalue(), "Prison_Letters_Updated.zip")
+            st.success("All files updated successfully.")
+            st.download_button("📥 Download Zip", zip_buf.getvalue(), "Updated_Documents.zip")
