@@ -11,6 +11,13 @@ from docx.oxml.ns import qn
 # 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
 
+# --- DATE ORDINAL HELPER ---
+def get_ordinal_suffix(day):
+    if 11 <= day <= 13:
+        return 'th'
+    else:
+        return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+
 # --- CUSTOM GREEN THEME CSS ---
 st.markdown("""
     <style>
@@ -21,14 +28,23 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FONT HELPER ---
+# --- FONT & SUPERSCRIPT HELPER ---
 def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
-    chunks = re.findall(r'[a-zA-Z]+|[^a-zA-Z]+', text)
-    for chunk in chunks:
-        run = paragraph.add_run(chunk)
+    # Regex to catch the day+suffix pattern (e.g., 14th) to apply superscript
+    parts = re.split(r'(\d+)(st|nd|rd|th)', text)
+    
+    for part in parts:
+        if not part: continue
+        run = paragraph.add_run(part)
         run.bold = is_bold
         run.underline = is_underline
-        if re.search(r'[a-zA-Z]', chunk):
+        
+        # Make suffix (st, nd, rd, th) small and on top
+        if part in ['st', 'nd', 'rd', 'th']:
+            run.font.superscript = True
+        
+        # English vs Thai Font Logic
+        if re.search(r'[a-zA-Z]', part):
             run.font.name = 'Times New Roman'
             run.font.size = Pt(13.5)
             r = run._element.rPr
@@ -43,10 +59,12 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
             r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
             r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
 
-# --- TOP PRIORITY: DATE SELECTION ---
+# --- TOP PRIORITY: DATE SELECTION (SIDEBAR) ---
 st.sidebar.header("📅 GLOBAL SETTINGS")
-today_date = st.sidebar.date_input("Today's Date (Letter Issue Date)", value=datetime.now())
-formatted_date = today_date.strftime("%d %B %Y")
+today_picker = st.sidebar.date_input("Today's Date (Letter Issue Date)", value=datetime.now())
+suffix = get_ordinal_suffix(today_picker.day)
+# This text is used for standard replacement
+formatted_date_plain = f"{today_picker.day}{suffix} {today_picker.strftime('%B %Y')}"
 
 # --- OFFICIAL HEADER ---
 st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK SYSTEM</h1>", unsafe_allow_html=True)
@@ -61,8 +79,6 @@ with tab1:
     category = st.selectbox("Category:", ["Visa 30 Days Extension", "Visa Student", "Visa Employment", "Visa Marriage", "Land Transport", "Visa Transfer"])
 
     st.write("---")
-    
-    # Common Fields
     col1, col2 = st.columns(2)
     with col1:
         name = st.text_input("Full Name")
@@ -72,27 +88,17 @@ with tab1:
         pob = st.text_input("Place of Birth (City/State)")
         gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
-    # Pronoun Logic strictly as requested
-    if gender_choice == "Male":
-        g1, g2, g3 = "he", "his", "him"
-    else:
-        g1, g2, g3 = "she", "her", "her"
+    # Pronoun Logic
+    g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
     st.write("---")
     st.subheader("🔵 STEP 2: CATEGORY SPECIFIC DETAILS")
     
-    # Context Dictionary with formatted date and pronouns
     final_context = {
-        "name": name,
-        "name_capital": name.upper() if name else "",
-        "passport": passport,
-        "dob": dob,
-        "pob": pob,
-        "gender1": g1,
-        "gender2": g2,
-        "gender3": g3,
-        "gender": g1, 
-        "date": formatted_date  # Uses the 'Today Date' selected at the top
+        "name": name, "name_capital": name.upper() if name else "",
+        "passport": passport, "dob": dob, "pob": pob,
+        "gender1": g1, "gender2": g2, "gender3": g3,
+        "gender": g1, "date": formatted_date_plain
     }
 
     template_file = ""
@@ -100,13 +106,11 @@ with tab1:
     if category == "Visa 30 Days Extension":
         template_file = "visa_30days.docx"
         final_context["leave_on"] = st.text_input("Intended Leave Date")
-
     elif category == "Visa Student":
         template_file = "visa_student.docx"
         final_context["program"] = st.text_input("Program of Study")
         final_context["place_of_study"] = st.text_input("University Name")
         final_context["location_of_study"] = st.text_input("Location (Province)")
-
     elif category == "Visa Employment":
         template_file = "visa_employment.docx"
         final_context["place_of_work"] = st.text_input("Company Name")
@@ -115,42 +119,53 @@ with tab1:
         final_context["country_of_issue"] = st.text_input("Passport Country of Issue", value="Nigeria")
         final_context["date_of_issue"] = st.text_input("Passport Date of Issue")
         final_context["passport_expiration"] = st.text_input("Passport Expiration Date")
-
     elif category == "Visa Marriage":
         template_file = "visa_marriage.docx"
-
     elif category == "Land Transport":
         template_file = "land_transport.docx"
         final_context["current_address"] = st.text_area("Current Address")
-        # Limited to your 2 requested choices
-        purpose_choice = st.selectbox("Purpose of Letter:", [
+        final_context["purpose"] = st.selectbox("Purpose of Letter:", [
             "registering a driving license as requested", 
             "transferring a vehicle as requested"
         ])
-        final_context["purpose"] = purpose_choice
-
     elif category == "Visa Transfer":
         template_file = "visa_transfer.docx"
-        final_context["old_passport"] = st.text_input("Old Passport Number")
-        final_context["old_passport_expiration"] = st.text_input("Old Passport Expiration Date")
-        final_context["place_of_issue"] = st.text_input("New Passport Place of Issue")
-        final_context["date_of_issue"] = st.text_input("New Passport Date of Issue")
-        final_context["passport_expiration"] = st.text_input("New Passport Expiration Date")
+        final_context.update({
+            "old_passport": st.text_input("Old Passport Number"),
+            "old_passport_expiration": st.text_input("Old Passport Expiration Date"),
+            "place_of_issue": st.text_input("New Passport Place of Issue"),
+            "date_of_issue": st.text_input("New Passport Date of Issue"),
+            "passport_expiration": st.text_input("New Passport Expiration Date")
+        })
 
     st.write("---")
     if st.button("💾 GENERATE DOCUMENT"):
-        if not name or not passport:
-            st.error("Name and Passport Number are mandatory.")
-        else:
+        if name and passport:
             try:
+                # 1. Standard Render
                 doc = DocxTemplate(template_file)
                 doc.render(final_context)
-                bio = io.BytesIO()
-                doc.save(bio)
-                st.success(f"Generated successfully with Issue Date: {formatted_date}")
-                st.download_button("📥 Download Document", bio.getvalue(), f"{name}_{category}.docx")
+                
+                # 2. Fix Superscripts manually for the generated date
+                target_stream = io.BytesIO()
+                doc.save(target_stream)
+                target_stream.seek(0)
+                final_doc = Document(target_stream)
+                
+                for p in final_doc.paragraphs:
+                    if formatted_date_plain in p.text:
+                        orig_text = p.text
+                        p.text = "" # Clear and rewrite with superscript logic
+                        apply_smart_font(p, orig_text)
+                
+                final_bio = io.BytesIO()
+                final_doc.save(final_bio)
+                st.success(f"Generated successfully with Issue Date: {formatted_date_plain}")
+                st.download_button("📥 Download Document", final_bio.getvalue(), f"{name}_{category}.docx")
             except Exception as e:
-                st.error(f"Error: {e}. Ensure the template '{template_file}' is available.")
+                st.error(f"Error: {e}")
+        else:
+            st.error("Name and Passport are mandatory.")
 
 # ==========================================
 # TAB 2: PROFESSIONAL BULK UPDATER
@@ -160,7 +175,7 @@ with tab2:
     col_a, col_b = st.columns(2)
     with col_a:
         ref_id = st.text_input("Reference No. Filter:", value="อีเอ็นบี/ซีเอ็น.07")
-        new_issue = st.text_input("New Issue Date (Thai/Eng):", value=formatted_date)
+        new_issue = st.text_input("New Issue Date:", value=formatted_date_plain)
     with col_b:
         new_visit = st.text_input("Visit Details:", placeholder="มิถุนายน 2569 เวลา 12.00 น.")
 
