@@ -2,6 +2,7 @@ import streamlit as st
 from docxtpl import DocxTemplate
 import io
 import zipfile
+import re
 from datetime import datetime
 from docx import Document
 from docx.shared import Pt
@@ -47,10 +48,10 @@ st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK SYSTEM</h1>", unsafe_
 st.markdown("<h4 style='text-align: center; color: #555;'>Consular & Immigration Department</h4>", unsafe_allow_html=True)
 
 # --- TABS NAVIGATION ---
-tab1, tab2 = st.tabs(["📝 Individual Generator", "📂 Bulk Prison Updater (Thai Support)"])
+tab1, tab2 = st.tabs(["📝 Individual Generator", "📂 Smart Bulk Prison Updater"])
 
 # ==========================================
-# TAB 1: INDIVIDUAL DOCUMENT GENERATOR (English)
+# TAB 1: INDIVIDUAL DOCUMENT GENERATOR
 # ==========================================
 with tab1:
     context = {}
@@ -60,37 +61,37 @@ with tab1:
     category = st.radio(
         "Select the department for this document:",
         ["Visa", "Land Transport", "Visa Transfer"],
-        horizontal=True, key="indiv_cat_radio"
+        horizontal=True, key="indiv_cat_choice"
     )
 
     st.write("---")
     st.subheader(f"📝 STEP 2: ENTER {category.upper()} DETAILS")
 
-    doc_date = st.date_input("Document Date", value=datetime.now(), key="indiv_date")
+    doc_date = st.date_input("Document Date", value=datetime.now(), key="indiv_date_picker")
     formatted_date = doc_date.strftime("%d %B %Y")
 
     col1, col2 = st.columns(2)
     with col1:
-        name = st.text_input("Full Name (As shown in Passport)", key="name_in")
-        passport = st.text_input("Passport Number", key="pass_in")
+        name = st.text_input("Full Name (As shown in Passport)", key="name_input")
+        passport = st.text_input("Passport Number", key="pass_input")
     with col2:
-        dob = st.text_input("Date of Birth (e.g., 01 Jan 1990)", key="dob_in")
-        pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)", key="pob_in")
+        dob = st.text_input("Date of Birth (e.g., 01 Jan 1990)", key="dob_input")
+        pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)", key="pob_input")
 
-    gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True, key="gender_in")
+    gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True, key="gender_input")
     g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
     if category == "Visa":
         sub_visa = st.selectbox("Purpose", ["30 Days Extension", "Student", "Employment", "Marriage"])
         if sub_visa == "30 Days Extension":
             template_file = "visa_30days.docx"
-            context = {"leave_on": st.text_input("Expected Date of Departure")}
+            context = {"leave_on": st.text_input("Expected Departure Date")}
         elif sub_visa == "Student":
             template_file = "visa_student.docx"
             context = {
                 "program": st.text_input("Program of Study"), 
-                "place_of_study": st.text_input("Name of University/School"), 
-                "location_of_study": st.text_input("Location of School")
+                "place_of_study": st.text_input("Name of School"), 
+                "location_of_study": st.text_input("School Location")
             }
         elif sub_visa == "Employment":
             template_file = "visa_employment.docx"
@@ -129,87 +130,84 @@ with tab1:
     }
     final_context.update(context)
 
-    if st.button("💾 GENERATE DOCUMENT", key="btn_gen"):
+    if st.button("💾 GENERATE DOCUMENT", key="gen_btn"):
         if not name.strip() or not passport.strip():
-            st.error("Missing Full Name or Passport.")
+            st.error("Missing mandatory fields.")
         else:
             try:
-                doc_t = DocxTemplate(template_file)
-                doc_t.render(final_context)
+                doc_templ = DocxTemplate(template_file)
+                doc_templ.render(final_context)
                 bio = io.BytesIO()
-                doc_t.save(bio)
+                doc_templ.save(bio)
                 st.balloons()
                 st.download_button("📥 Download", bio.getvalue(), f"{name}.docx")
             except Exception as e:
                 st.error(f"Error: {e}")
 
 # ==========================================
-# TAB 2: BULK PRISON UPDATER (Thai Script + Angsana New)
+# TAB 2: SMART BULK UPDATER (REGEX + ANGSANA)
 # ==========================================
 with tab2:
-    st.subheader("⚡ Thai Letter Bulk Date & Time Swapper")
-    st.info("💡 **Tip:** If the text doesn't change, copy the text directly from your Word file and paste it into the 'FIND' box.")
+    st.subheader("⚡ Smart Thai Date & Time Updater")
+    st.info("💡 **Smart Logic:** This tool finds the word **'ในเดือน'** and replaces everything after it in that line. No need to know the old date!")
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("**🔍 FIND (OLD CONTENT)**")
-        old_i = st.text_input("Old Issue Date", placeholder="เช่น 29 พฤษภาคม 2569", key="ti_old_i")
-        old_v = st.text_input("Old Visit Month", placeholder="เช่น พฤษภาคม 2569", key="ti_old_v")
-        old_t = st.text_input("Old Visit Time", placeholder="เช่น 10.00 – 15.00 น.", key="ti_old_t")
+        st.markdown("**🔍 ISSUE DATE (Top of Letter)**")
+        old_issue_date = st.text_input("Find Old Issue Date", placeholder="เช่น 29 พฤษภาคม 2569", key="find_issue")
+        new_issue_date = st.text_input("Replace with New Issue Date", value=datetime.now().strftime("%d %B %Y"), key="replace_issue")
     
     with col_b:
-        st.markdown("**🖋️ REPLACE (NEW CONTENT)**")
-        new_i = st.text_input("New Issue Date", placeholder="เช่น 14 มิถุนายน 2569", key="ti_new_i")
-        new_v = st.text_input("New Visit Month", placeholder="เช่น มิถุนายน 2569", key="ti_new_v")
-        new_t = st.text_input("New Visit Time", placeholder="เช่น 12.00 - 15.00 น.", key="ti_new_t")
+        st.markdown("**🖋️ VISIT DETAILS (After 'ในเดือน')**")
+        new_visit_details = st.text_input("New Visit Month & Time", placeholder="เช่น มิถุนายน 2569 เวลา 12.00 - 15.00 น.", key="replace_visit")
 
-    files = st.file_uploader("Upload Thai .docx files", type=["docx"], accept_multiple_files=True, key="bulk_up")
+    uploaded_prison_files = st.file_uploader("Upload Thai .docx files", type=["docx"], accept_multiple_files=True, key="bulk_upload")
 
-    if st.button("🚀 BATCH UPDATE ALL THAI LETTERS", key="btn_bulk"):
-        if not files or not old_i or not new_i:
-            st.warning("Please enter at least the Issue Date and upload files.")
+    if st.button("🚀 EXECUTE SMART BATCH UPDATE", key="bulk_btn"):
+        if not uploaded_prison_files or not new_visit_details:
+            st.warning("Please upload files and enter the new visit details.")
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_f:
-                for f in files:
+                for f in uploaded_prison_files:
                     doc = Document(f)
                     
-                    def thai_safe_replace(paragraphs, find_txt, replace_txt):
-                        if not find_txt or not replace_txt:
-                            return
-                        for p in paragraphs:
-                            if find_txt in p.text:
-                                # Replace the text string
-                                updated_text = p.text.replace(find_txt, replace_txt)
-                                # Clear existing text and re-apply with specific Thai font settings
-                                p.text = ""
-                                run = p.add_run(updated_text)
-                                # Force Angsana New 16pt (Official Standard)
-                                run.font.name = 'Angsana New'
-                                run.font.size = Pt(16)
-                                r = run._element.rPr
-                                # These 4 settings ensure Thai script is forced to Angsana New
-                                r.get_or_add_rFonts().set(qn('w:eastAsia'), 'Angsana New')
-                                r.get_or_add_rFonts().set(qn('w:cs'), 'Angsana New')
-                                r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
-                                r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
+                    def apply_thai_style(paragraph, updated_text):
+                        """Clears paragraph and applies Angsana New 16pt with Thai script support."""
+                        paragraph.text = ""
+                        run = paragraph.add_run(updated_text)
+                        run.font.name = 'Angsana New'
+                        run.font.size = Pt(16)
+                        r = run._element.rPr
+                        # Apply fonts to all script types (Complex, East Asia, etc.)
+                        for font_type in ['w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs']:
+                            r.get_or_add_rFonts().set(qn(font_type), 'Angsana New')
 
-                    # Process Paragraphs for all three fields
-                    thai_safe_replace(doc.paragraphs, old_i, new_i)
-                    thai_safe_replace(doc.paragraphs, old_v, new_v)
-                    thai_safe_replace(doc.paragraphs, old_t, new_t)
-                    
-                    # Also check inside tables (Prisoner lists)
+                    def process_paragraphs(paragraphs):
+                        for p in paragraphs:
+                            # 1. Replace the Issue Date
+                            if old_issue_date and old_issue_date in p.text:
+                                text_out = p.text.replace(old_issue_date, new_issue_date)
+                                apply_thai_style(p, text_out)
+
+                            # 2. Smart Replace after 'ในเดือน'
+                            if "ในเดือน" in p.text:
+                                # Regex looks for "ในเดือน" plus any text following it
+                                pattern = r"(ในเดือน\s*).*"
+                                replacement = r"\1" + new_visit_details
+                                text_out = re.sub(pattern, replacement, p.text)
+                                apply_thai_style(p, text_out)
+
+                    # Execute logic for Paragraphs and Tables
+                    process_paragraphs(doc.paragraphs)
                     for table in doc.tables:
                         for row in table.rows:
                             for cell in row.cells:
-                                thai_safe_replace(cell.paragraphs, old_i, new_i)
-                                thai_safe_replace(cell.paragraphs, old_v, new_v)
-                                thai_safe_replace(cell.paragraphs, old_t, new_t)
+                                process_paragraphs(cell.paragraphs)
                     
-                    out = io.BytesIO()
-                    doc.save(out)
-                    zip_f.writestr(f.name, out.getvalue())
+                    out_stream = io.BytesIO()
+                    doc.save(out_stream)
+                    zip_f.writestr(f.name, out_stream.getvalue())
 
-            st.success(f"Batch update complete for {len(files)} Thai letters!")
-            st.download_button("📥 Download Updated Thai ZIP", zip_buffer.getvalue(), f"Batch_Thai_Update.zip")
+            st.success(f"Successfully processed {len(uploaded_prison_files)} letters!")
+            st.download_button("📥 Download All Updated Letters (ZIP)", zip_buffer.getvalue(), f"Smart_Update_{datetime.now().strftime('%d_%m')}.zip")
