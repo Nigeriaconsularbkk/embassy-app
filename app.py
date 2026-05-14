@@ -11,7 +11,7 @@ from docx.oxml.ns import qn
 # 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
 
-# --- DATE ORDINAL HELPER (Includes the comma after Month) ---
+# --- DATE ORDINAL HELPER ---
 def get_ordinal_suffix(day):
     if 11 <= day <= 13:
         return 'th'
@@ -28,8 +28,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SMART FONT ENGINE (Thai/Num=Angsana 17, Eng=TNR 13.5, Superscript suffixes) ---
+# --- SMART FONT ENGINE (Ensures Alignment and Font Rules) ---
 def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
+    # Ensure the paragraph has no weird offsets so lines align vertically
+    paragraph.paragraph_format.left_indent = None
+    paragraph.paragraph_format.first_line_indent = None
+    
     # Split text to catch suffixes for superscripting (st, nd, rd, th)
     parts = re.split(r'(\d+)(st|nd|rd|th)', text)
     
@@ -39,7 +43,7 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
         run.bold = is_bold
         run.underline = is_underline
         
-        # 1. Handle Superscript for dates (Small on top)
+        # 1. Handle Superscript for dates
         if part in ['st', 'nd', 'rd', 'th']:
             run.font.superscript = True
             run.font.size = Pt(10)
@@ -63,10 +67,9 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
 
 # --- TOP PRIORITY: DATE SELECTION (SIDEBAR) ---
 st.sidebar.header("📅 GLOBAL SETTINGS")
-today_picker = st.sidebar.date_input("Today's Date (Letter Issue Date)", value=datetime.now())
+today_picker = st.sidebar.date_input("Today's Date", value=datetime.now())
 suffix = get_ordinal_suffix(today_picker.day)
-
-# ADJUSTED FORMAT: "14th May, 2026" (Added Comma)
+# Format: 14th May, 2026
 formatted_date_plain = f"{today_picker.day}{suffix} {today_picker.strftime('%B, %Y')}"
 
 # --- OFFICIAL HEADER ---
@@ -91,12 +94,8 @@ with tab1:
         pob = st.text_input("Place of Birth")
         gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
-    # Pronoun Logic
     g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
-    st.write("---")
-    st.subheader("🔵 STEP 2: CATEGORY SPECIFIC DETAILS")
-    
     final_context = {
         "name": name, "name_capital": name.upper() if name else "",
         "passport": passport, "dob": dob, "pob": pob,
@@ -110,34 +109,19 @@ with tab1:
         final_context["leave_on"] = st.text_input("Intended Leave Date")
     elif category == "Visa Student":
         template_file = "visa_student.docx"
-        final_context["program"] = st.text_input("Program of Study")
-        final_context["place_of_study"] = st.text_input("University Name")
-        final_context["location_of_study"] = st.text_input("Location")
+        final_context.update({"program": st.text_input("Program"), "place_of_study": st.text_input("University"), "location_of_study": st.text_input("Location")})
     elif category == "Visa Employment":
         template_file = "visa_employment.docx"
-        final_context.update({
-            "place_of_work": st.text_input("Company Name"),
-            "location_of_work": st.text_input("Work Location"),
-            "place_of_issue": st.text_input("Passport Place of Issue"),
-            "country_of_issue": "Nigeria",
-            "date_of_issue": st.text_input("Passport Issue Date"),
-            "passport_expiration": st.text_input("Passport Expiry Date")
-        })
+        final_context.update({"place_of_work": st.text_input("Company"), "location_of_work": st.text_input("Location"), "place_of_issue": st.text_input("Passport Place of Issue"), "country_of_issue": "Nigeria", "date_of_issue": st.text_input("Passport Issue Date"), "passport_expiration": st.text_input("Passport Expiry Date")})
     elif category == "Visa Marriage":
         template_file = "visa_marriage.docx"
     elif category == "Land Transport":
         template_file = "land_transport.docx"
-        final_context["current_address"] = st.text_area("Current Address")
+        final_context["current_address"] = st.text_area("Address")
         final_context["purpose"] = st.selectbox("Purpose:", ["registering a driving license as requested", "transferring a vehicle as requested"])
     elif category == "Visa Transfer":
         template_file = "visa_transfer.docx"
-        final_context.update({
-            "old_passport": st.text_input("Old Passport Number"),
-            "old_passport_expiration": st.text_input("Old Passport Expiration Date"),
-            "place_of_issue": st.text_input("New Passport Place of Issue"),
-            "date_of_issue": st.text_input("New Passport Date of Issue"),
-            "passport_expiration": st.text_input("New Passport Expiration Date")
-        })
+        final_context.update({"old_passport": st.text_input("Old Passport No."), "old_passport_expiration": st.text_input("Old Passport Expiry"), "place_of_issue": st.text_input("New Passport Place of Issue"), "date_of_issue": st.text_input("New Passport Issue Date"), "passport_expiration": st.text_input("New Passport Expiry")})
 
     if st.button("💾 GENERATE DOCUMENT"):
         if name and passport:
@@ -148,21 +132,17 @@ with tab1:
                 doc.save(target_stream)
                 target_stream.seek(0)
                 final_doc = Document(target_stream)
-                
                 for p in final_doc.paragraphs:
                     if formatted_date_plain in p.text:
                         orig_text = p.text
                         p.text = "" 
                         apply_smart_font(p, orig_text)
-                
                 final_bio = io.BytesIO()
                 final_doc.save(final_bio)
-                st.success(f"Success! Generated for {formatted_date_plain}")
+                st.success(f"Generated for {formatted_date_plain}")
                 st.download_button("📥 Download", final_bio.getvalue(), f"{name}_{category}.docx")
             except Exception as e:
                 st.error(f"Error: {e}")
-        else:
-            st.warning("Please fill Name and Passport fields.")
 
 # ==========================================
 # TAB 2: PROFESSIONAL BULK UPDATER
@@ -171,10 +151,10 @@ with tab2:
     st.subheader("🏛️ Smart Prison Batch Updater")
     col_a, col_b = st.columns(2)
     with col_a:
-        ref_id = st.text_input("Reference Line Search:", value="อีเอ็นบี/ซีเอ็น.07")
-        new_issue = st.text_input("Update Date in File:", value=formatted_date_plain)
+        ref_id = st.text_input("Reference No. to Search:", value="อีเอ็นบี/ซีเอ็น.07")
+        new_issue = st.text_input("New Issue Date:", value=formatted_date_plain)
     with col_b:
-        new_visit = st.text_input("New Visit Details (Thai):", placeholder="มิถุนายน 2569")
+        new_visit = st.text_input("New Visit Details:", placeholder="มิถุนายน 2569")
 
     files = st.file_uploader("Upload Word Docs", type=["docx"], accept_multiple_files=True)
 
@@ -187,31 +167,35 @@ with tab2:
                     update_next_issue = False
                     
                     for p in list(doc.paragraphs):
-                        # 1. Update issue date line
+                        # 1. Find Reference line, then update the very next paragraph (the date line)
                         if ref_id in p.text:
+                            # Align the reference line itself just in case
+                            p.paragraph_format.left_indent = None
+                            p.paragraph_format.first_line_indent = None
                             update_next_issue = True
                             continue
+                            
                         if update_next_issue and len(p.text.strip()) > 0:
                             p.text = ""
+                            # This will write the new date with 0 indentation, perfectly aligned with the ref above
                             apply_smart_font(p, new_issue)
                             update_next_issue = False
                             continue
                         
-                        # 2. Update visit month and apply Smart Font rules
+                        # 2. Update visit details paragraph
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
                             apply_smart_font(p, parts[0] + "ในเดือน")
                             apply_smart_font(p, " ")
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
-                        else:
-                            # Standardize existing text font
+                        elif p.text.strip():
+                            # Standardize font for everything else in the document
                             orig_p_text = p.text
-                            if orig_p_text.strip():
-                                p.text = ""
-                                apply_smart_font(p, orig_p_text)
+                            p.text = ""
+                            apply_smart_font(p, orig_p_text)
                     
                     out = io.BytesIO()
                     doc.save(out)
                     zip_f.writestr(f.name, out.getvalue())
-            st.download_button("📥 Download ZIP", zip_buf.getvalue(), "Embassy_Updated_Files.zip")
+            st.download_button("📥 Download ZIP", zip_buf.getvalue(), "Updated_Prison_Files.zip")
