@@ -29,14 +29,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SMART FONT ENGINE (Enforces Font Rules & Superscript) ---
-def apply_smart_font(paragraph, text, is_bold=False, is_underline=False, force_align=False):
-    # Reset indentation to ensure vertical alignment for stacked lines
+# --- SMART FONT ENGINE (Enforces Font Rules, Superscript, and Alignment) ---
+def apply_smart_font(paragraph, text, is_bold=False, is_underline=False, force_align=False, align_right=False):
+    # Handle Indentation and Alignment
     if force_align:
         paragraph.paragraph_format.left_indent = None
         paragraph.paragraph_format.first_line_indent = None
+    
+    if align_right:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    # Split text to catch suffixes for superscripting
+    # Split text to catch suffixes for superscripting (st, nd, rd, th)
     parts = re.split(r'(\d+)(st|nd|rd|th)', text)
     
     for part in parts:
@@ -110,7 +113,7 @@ with tab1:
     elif category == "Visa Student": 
         template_file = "visa_student.docx"; final_context.update({"program": st.text_input("Program"), "place_of_study": st.text_input("University"), "location_of_study": st.text_input("Location")})
     elif category == "Visa Employment": 
-        template_file = "visa_employment.docx"; final_context.update({"place_of_work": st.text_input("Company"), "location_of_work": st.text_input("Location"), "place_of_issue": st.text_input("Passport Place of Issue"), "country_of_issue": "Nigeria", "date_of_issue": st.text_input("Passport Issue Date"), "passport_expiration": st.text_input("Passport Expiry Date")})
+        template_file = "visa_employment.docx"; final_context.update({"place_of_work": st.text_input("Company"), "location_of_work": st.text_input("Work Location"), "place_of_issue": st.text_input("Passport Place of Issue"), "country_of_issue": "Nigeria", "date_of_issue": st.text_input("Passport Issue Date"), "passport_expiration": st.text_input("Passport Expiry Date")})
     elif category == "Visa Marriage": 
         template_file = "visa_marriage.docx"
     elif category == "Land Transport": 
@@ -155,21 +158,22 @@ with tab2:
                     update_next_issue = False
                     
                     for p in list(doc.paragraphs):
-                        # 1. Update issue date line (line after reference)
+                        # 1. Align the Reference line to TOP RIGHT
                         if ref_id in p.text:
-                            # Standardize font/alignment for Reference line
                             orig_ref = p.text; p.text = ""
-                            apply_smart_font(p, orig_ref, force_align=True)
+                            # force_align resets indents, align_right pushes to the right
+                            apply_smart_font(p, orig_ref, force_align=True, align_right=True)
                             update_next_issue = True
                             continue
                         
+                        # 2. Align the Date line to TOP RIGHT (Immediately after Reference)
                         if update_next_issue and len(p.text.strip()) > 0:
                             p.text = ""
-                            apply_smart_font(p, new_issue, force_align=True)
+                            apply_smart_font(p, new_issue, force_align=True, align_right=True)
                             update_next_issue = False
                             continue
                         
-                        # 2. Update visit month and apply Smart Font rules
+                        # 3. Update visit month and apply Smart Font rules
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
@@ -177,7 +181,7 @@ with tab2:
                             apply_smart_font(p, " ")
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
                         elif p.text.strip():
-                            # Standardize font for all other text in the document
+                            # Standardize font for all other text
                             orig_p_text = p.text; p.text = ""
                             apply_smart_font(p, orig_p_text)
                     
