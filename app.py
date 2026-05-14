@@ -59,8 +59,7 @@ category = st.radio(
 st.write("---")
 st.subheader(f"📝 STEP 2: ENTER {category.upper()} DETAILS")
 
-# DYNAMIC DATE SELECTION (This fills the {{date}} tag)
-doc_date = st.date_input("Document Date (Select today or a custom date)", value=datetime.now())
+doc_date = st.date_input("Document Date", value=datetime.now())
 formatted_date = doc_date.strftime("%d %B %Y")
 
 col1, col2 = st.columns(2)
@@ -80,8 +79,7 @@ if category == "Visa":
     
     if sub_visa == "30 Days Extension":
         template_file = "visa_30days.docx"
-        leave_on = st.text_input("Expected Date of Departure")
-        context = {"leave_on": leave_on}
+        context = {"leave_on": st.text_input("Expected Date of Departure")}
         
     elif sub_visa == "Student":
         template_file = "visa_student.docx"
@@ -122,19 +120,17 @@ elif category == "Visa Transfer":
         "old_passport_expiration": st.text_input("Old Passport Expiration Date")
     }
 
-# --- MERGE ALL CONTEXT ---
-# All variables here will be available to ALL templates
+# --- FINAL CONTEXT MERGE ---
 final_context = {
     "name": name,
     "name_capital": name.upper() if name else "",
     "passport": passport,
     "dob": dob,
     "pob": pob,
-    "gender": g1,
     "gender1": g1,
     "gender2": g2,
     "gender3": g3,
-    "date": formatted_date  # This populates {{date}} in your Word files
+    "date": formatted_date
 }
 final_context.update(context)
 
@@ -148,6 +144,7 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
     else:
         try:
             doc = DocxTemplate(template_file)
+            # This is where the error happens if Word tags don't match final_context keys
             doc.render(final_context)
             
             bio = io.BytesIO()
@@ -163,4 +160,5 @@ if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
         except Exception as e:
-            st.error(f"Error: {e}. Please ensure the template file '{template_file}' exists in the folder.")
+            st.error(f"Error: {e}")
+            st.info("Double-check that your Word tags use underscores (e.g., {{place_of_work}}) and NO SPACES.")
