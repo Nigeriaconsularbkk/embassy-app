@@ -11,7 +11,7 @@ from docx.oxml.ns import qn
 # 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
 
-# --- DATE ORDINAL HELPER ---
+# --- DATE ORDINAL HELPER (Includes the comma after Month) ---
 def get_ordinal_suffix(day):
     if 11 <= day <= 13:
         return 'th'
@@ -28,9 +28,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SMART FONT ENGINE (ENFORCES YOUR FONT RULES) ---
+# --- SMART FONT ENGINE (Thai/Num=Angsana 17, Eng=TNR 13.5, Superscript suffixes) ---
 def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
-    # Regex to catch suffixes for superscripting (st, nd, rd, th)
+    # Split text to catch suffixes for superscripting (st, nd, rd, th)
     parts = re.split(r'(\d+)(st|nd|rd|th)', text)
     
     for part in parts:
@@ -39,13 +39,12 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
         run.bold = is_bold
         run.underline = is_underline
         
-        # 1. Handle Superscript for dates
+        # 1. Handle Superscript for dates (Small on top)
         if part in ['st', 'nd', 'rd', 'th']:
             run.font.superscript = True
             run.font.size = Pt(10)
         
         # 2. Font Rules: Thai/Numbers = Angsana New, English = Times New Roman
-        # If it has Thai characters OR is a number
         if re.search(r'[\u0e00-\u0e7f0-9]', part):
             run.font.name = 'Angsana New'
             run.font.size = Pt(17)
@@ -55,7 +54,6 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
             r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
             r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
         else:
-            # Pure English text
             run.font.name = 'Times New Roman'
             if not run.font.superscript:
                 run.font.size = Pt(13.5)
@@ -67,7 +65,9 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
 st.sidebar.header("📅 GLOBAL SETTINGS")
 today_picker = st.sidebar.date_input("Today's Date (Letter Issue Date)", value=datetime.now())
 suffix = get_ordinal_suffix(today_picker.day)
-formatted_date_plain = f"{today_picker.day}{suffix} {today_picker.strftime('%B %Y')}"
+
+# ADJUSTED FORMAT: "14th May, 2026" (Added Comma)
+formatted_date_plain = f"{today_picker.day}{suffix} {today_picker.strftime('%B, %Y')}"
 
 # --- OFFICIAL HEADER ---
 st.markdown("<h1 class='main-title'>EMBASSY OF NIGERIA BKK SYSTEM</h1>", unsafe_allow_html=True)
@@ -91,6 +91,7 @@ with tab1:
         pob = st.text_input("Place of Birth")
         gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
+    # Pronoun Logic
     g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
     st.write("---")
@@ -132,10 +133,10 @@ with tab1:
         template_file = "visa_transfer.docx"
         final_context.update({
             "old_passport": st.text_input("Old Passport Number"),
-            "old_passport_expiration": st.text_input("Old Passport Expiry"),
+            "old_passport_expiration": st.text_input("Old Passport Expiration Date"),
             "place_of_issue": st.text_input("New Passport Place of Issue"),
-            "date_of_issue": st.text_input("New Passport Issue Date"),
-            "passport_expiration": st.text_input("New Passport Expiry")
+            "date_of_issue": st.text_input("New Passport Date of Issue"),
+            "passport_expiration": st.text_input("New Passport Expiration Date")
         })
 
     if st.button("💾 GENERATE DOCUMENT"):
@@ -156,12 +157,12 @@ with tab1:
                 
                 final_bio = io.BytesIO()
                 final_doc.save(final_bio)
-                st.success(f"Success! Generated with Superscript Date.")
+                st.success(f"Success! Generated for {formatted_date_plain}")
                 st.download_button("📥 Download", final_bio.getvalue(), f"{name}_{category}.docx")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
-            st.error("Missing critical fields.")
+            st.warning("Please fill Name and Passport fields.")
 
 # ==========================================
 # TAB 2: PROFESSIONAL BULK UPDATER
@@ -186,7 +187,7 @@ with tab2:
                     update_next_issue = False
                     
                     for p in list(doc.paragraphs):
-                        # 1. Update issue date line (line after reference)
+                        # 1. Update issue date line
                         if ref_id in p.text:
                             update_next_issue = True
                             continue
@@ -196,17 +197,15 @@ with tab2:
                             update_next_issue = False
                             continue
                         
-                        # 2. Update visit month and apply the Smart Font rules to the whole paragraph
+                        # 2. Update visit month and apply Smart Font rules
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
-                            # Apply font to original first part
                             apply_smart_font(p, parts[0] + "ในเดือน")
                             apply_smart_font(p, " ")
-                            # Apply font to the new visit details (Bold/Underline)
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
                         else:
-                            # Standardize font for existing text in updated paragraphs
+                            # Standardize existing text font
                             orig_p_text = p.text
                             if orig_p_text.strip():
                                 p.text = ""
