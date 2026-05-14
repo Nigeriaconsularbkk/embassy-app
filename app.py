@@ -28,9 +28,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- ENHANCED FONT & SUPERSCRIPT HELPER ---
+# --- SMART FONT ENGINE (ENFORCES YOUR FONT RULES) ---
 def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
-    # Regex splits text to find numbers followed by suffixes for superscripting
+    # Regex to catch suffixes for superscripting (st, nd, rd, th)
     parts = re.split(r'(\d+)(st|nd|rd|th)', text)
     
     for part in parts:
@@ -39,20 +39,14 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
         run.bold = is_bold
         run.underline = is_underline
         
-        # APPLY SUPERSCRIPT (Small on top) to suffixes
+        # 1. Handle Superscript for dates
         if part in ['st', 'nd', 'rd', 'th']:
             run.font.superscript = True
-            run.font.size = Pt(10) 
+            run.font.size = Pt(10)
         
-        # English vs Thai Font Logic
-        if re.search(r'[a-zA-Z]', part):
-            run.font.name = 'Times New Roman'
-            if not run.font.superscript:
-                run.font.size = Pt(13.5)
-            r = run._element.rPr
-            r.get_or_add_rFonts().set(qn('w:ascii'), 'Times New Roman')
-            r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Times New Roman')
-        else:
+        # 2. Font Rules: Thai/Numbers = Angsana New, English = Times New Roman
+        # If it has Thai characters OR is a number
+        if re.search(r'[\u0e00-\u0e7f0-9]', part):
             run.font.name = 'Angsana New'
             run.font.size = Pt(17)
             r = run._element.rPr
@@ -60,6 +54,14 @@ def apply_smart_font(paragraph, text, is_bold=False, is_underline=False):
             r.get_or_add_rFonts().set(qn('w:eastAsia'), 'Angsana New')
             r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
             r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
+        else:
+            # Pure English text
+            run.font.name = 'Times New Roman'
+            if not run.font.superscript:
+                run.font.size = Pt(13.5)
+            r = run._element.rPr
+            r.get_or_add_rFonts().set(qn('w:ascii'), 'Times New Roman')
+            r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Times New Roman')
 
 # --- TOP PRIORITY: DATE SELECTION (SIDEBAR) ---
 st.sidebar.header("📅 GLOBAL SETTINGS")
@@ -89,28 +91,19 @@ with tab1:
         pob = st.text_input("Place of Birth")
         gender_choice = st.radio("Gender", ["Male", "Female"], horizontal=True)
 
-    # Pronoun Logic
-    # gender1: he/she | gender2: his/her | gender3: him/her
     g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
     st.write("---")
     st.subheader("🔵 STEP 2: CATEGORY SPECIFIC DETAILS")
     
     final_context = {
-        "name": name, 
-        "name_capital": name.upper() if name else "",
-        "passport": passport, 
-        "dob": dob, 
-        "pob": pob,
-        "gender1": g1, 
-        "gender2": g2, 
-        "gender3": g3, 
-        "gender": g1, 
-        "date": formatted_date_plain
+        "name": name, "name_capital": name.upper() if name else "",
+        "passport": passport, "dob": dob, "pob": pob,
+        "gender1": g1, "gender2": g2, "gender3": g3,
+        "gender": g1, "date": formatted_date_plain
     }
 
     template_file = ""
-
     if category == "Visa 30 Days Extension":
         template_file = "visa_30days.docx"
         final_context["leave_on"] = st.text_input("Intended Leave Date")
@@ -134,10 +127,7 @@ with tab1:
     elif category == "Land Transport":
         template_file = "land_transport.docx"
         final_context["current_address"] = st.text_area("Current Address")
-        final_context["purpose"] = st.selectbox("Purpose:", [
-            "registering a driving license as requested", 
-            "transferring a vehicle as requested"
-        ])
+        final_context["purpose"] = st.selectbox("Purpose:", ["registering a driving license as requested", "transferring a vehicle as requested"])
     elif category == "Visa Transfer":
         template_file = "visa_transfer.docx"
         final_context.update({
@@ -153,8 +143,6 @@ with tab1:
             try:
                 doc = DocxTemplate(template_file)
                 doc.render(final_context)
-                
-                # Re-process to fix superscript date
                 target_stream = io.BytesIO()
                 doc.save(target_stream)
                 target_stream.seek(0)
@@ -168,12 +156,12 @@ with tab1:
                 
                 final_bio = io.BytesIO()
                 final_doc.save(final_bio)
-                st.success(f"Generated successfully for {name}")
-                st.download_button("📥 Download Document", final_bio.getvalue(), f"{name}_{category}.docx")
+                st.success(f"Success! Generated with Superscript Date.")
+                st.download_button("📥 Download", final_bio.getvalue(), f"{name}_{category}.docx")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
-            st.warning("Please fill out the Name and Passport fields.")
+            st.error("Missing critical fields.")
 
 # ==========================================
 # TAB 2: PROFESSIONAL BULK UPDATER
@@ -195,27 +183,36 @@ with tab2:
             with zipfile.ZipFile(zip_buf, "w") as zip_f:
                 for f in files:
                     doc = Document(f)
-                    update_next = False
+                    update_next_issue = False
+                    
                     for p in list(doc.paragraphs):
-                        # 1. Update issue date line
+                        # 1. Update issue date line (line after reference)
                         if ref_id in p.text:
-                            update_next = True
+                            update_next_issue = True
                             continue
-                        if update_next and len(p.text.strip()) > 0:
+                        if update_next_issue and len(p.text.strip()) > 0:
                             p.text = ""
                             apply_smart_font(p, new_issue)
-                            update_next = False
+                            update_next_issue = False
                             continue
                         
-                        # 2. Update visit month
+                        # 2. Update visit month and apply the Smart Font rules to the whole paragraph
                         if "ในเดือน" in p.text:
                             parts = p.text.split("ในเดือน", 1)
                             p.text = ""
+                            # Apply font to original first part
                             apply_smart_font(p, parts[0] + "ในเดือน")
                             apply_smart_font(p, " ")
+                            # Apply font to the new visit details (Bold/Underline)
                             apply_smart_font(p, new_visit, is_bold=True, is_underline=True)
+                        else:
+                            # Standardize font for existing text in updated paragraphs
+                            orig_p_text = p.text
+                            if orig_p_text.strip():
+                                p.text = ""
+                                apply_smart_font(p, orig_p_text)
                     
                     out = io.BytesIO()
                     doc.save(out)
                     zip_f.writestr(f.name, out.getvalue())
-            st.download_button("📥 Download Updated ZIP", zip_buf.getvalue(), "Embassy_Updated_Files.zip")
+            st.download_button("📥 Download ZIP", zip_buf.getvalue(), "Embassy_Updated_Files.zip")
