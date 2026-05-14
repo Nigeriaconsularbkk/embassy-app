@@ -3,7 +3,7 @@ from docxtpl import DocxTemplate
 import io
 import zipfile
 from datetime import datetime
-from docx import Document  # Ensure you have 'python-docx' in requirements.txt
+from docx import Document
 
 # 1. PAGE SETUP
 st.set_page_config(page_title="Embassy of Nigeria BKK", page_icon="🇳🇬", layout="wide")
@@ -58,47 +58,47 @@ with tab1:
     category = st.radio(
         "Select the department for this document:",
         ["Visa", "Land Transport", "Visa Transfer"],
-        horizontal=True, key="cat_radio"
+        horizontal=True, key="indiv_cat"
     )
 
     st.write("---")
     st.subheader(f"📝 STEP 2: ENTER {category.upper()} DETAILS")
 
-    doc_date = st.date_input("Document Date", value=datetime.now(), key="indiv_date")
+    doc_date = st.date_input("Document Date", value=datetime.now(), key="indiv_date_picker")
     formatted_date = doc_date.strftime("%d %B %Y")
 
     col1, col2 = st.columns(2)
     with col1:
-        name = st.text_input("Full Name (As shown in Passport)")
-        passport = st.text_input("Passport Number")
+        name = st.text_input("Full Name (As shown in Passport)", key="indiv_name")
+        passport = st.text_input("Passport Number", key="indiv_pp")
     with col2:
-        dob = st.text_input("Date of Birth (e.g., 01 Jan 1990)")
-        pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)")
+        dob = st.text_input("Date of Birth (e.g., 01 Jan 1990)", key="indiv_dob")
+        pob = st.text_input("Place of Birth (e.g., Lagos, Nigeria)", key="indiv_pob")
 
-    gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True)
+    gender_choice = st.radio("Gender of Applicant", ["Male", "Female"], horizontal=True, key="indiv_gender")
     g1, g2, g3 = ("he", "his", "him") if gender_choice == "Male" else ("she", "her", "her")
 
     if category == "Visa":
-        sub_visa = st.selectbox("Purpose of Visa Extension", ["30 Days Extension", "Student", "Employment", "Marriage"])
+        sub_visa = st.selectbox("Purpose", ["30 Days Extension", "Student", "Employment", "Marriage"])
         if sub_visa == "30 Days Extension":
             template_file = "visa_30days.docx"
-            context = {"leave_on": st.text_input("Expected Date of Departure")}
+            context = {"leave_on": st.text_input("Expected Departure Date")}
         elif sub_visa == "Student":
             template_file = "visa_student.docx"
             context = {
                 "program": st.text_input("Program of Study"), 
-                "place_of_study": st.text_input("Name of University/School"), 
-                "location_of_study": st.text_input("Location of School")
+                "place_of_study": st.text_input("School Name"), 
+                "location_of_study": st.text_input("School Location")
             }
         elif sub_visa == "Employment":
             template_file = "visa_employment.docx"
             context = {
-                "place_of_work": st.text_input("Place of Work (Company Name)"), 
+                "place_of_work": st.text_input("Company Name"), 
                 "location_of_work": st.text_input("Work Location"), 
                 "place_of_issue": st.text_input("Passport Place of Issue"), 
                 "country_of_issue": st.text_input("Country of Issue"), 
-                "date_of_issue": st.text_input("Date of Passport Issue"), 
-                "passport_expiration": st.text_input("Passport Expiration Date")
+                "date_of_issue": st.text_input("Date of Issue"), 
+                "passport_expiration": st.text_input("Expiration Date")
             }
         elif sub_visa == "Marriage":
             template_file = "visa_marriage.docx"
@@ -106,7 +106,7 @@ with tab1:
     elif category == "Land Transport":
         template_file = "land_transport.docx"
         context = {
-            "purpose": st.selectbox("Action Requested", ["transferring a vehicle as requested", "registering a driving license as requested"]),
+            "purpose": st.selectbox("Action", ["transferring a vehicle as requested", "registering a driving license as requested"]),
             "current_address": st.text_area("Resident Address in Thailand")
         }
 
@@ -121,85 +121,77 @@ with tab1:
         }
 
     final_context = {
-        "name": name,
-        "name_capital": name.upper() if name else "",
-        "passport": passport,
-        "dob": dob,
-        "pob": pob,
-        "gender1": g1,
-        "gender2": g2,
-        "gender3": g3,
-        "date": formatted_date
+        "name": name, "name_capital": name.upper() if name else "",
+        "passport": passport, "dob": dob, "pob": pob,
+        "gender1": g1, "gender2": g2, "gender3": g3, "date": formatted_date
     }
     final_context.update(context)
 
-    st.write("---")
-    if st.button("💾 CLICK TO GENERATE & DOWNLOAD"):
+    if st.button("💾 GENERATE SINGLE DOCUMENT"):
         if not name.strip() or not passport.strip():
-            st.error("⚠️ Mandatory fields missing: Full Name and Passport Number.")
+            st.error("Missing Full Name or Passport.")
         else:
             try:
-                doc = DocxTemplate(template_file)
-                doc.render(final_context)
+                doc_templ = DocxTemplate(template_file)
+                doc_templ.render(final_context)
                 bio = io.BytesIO()
-                doc.save(bio)
-                bio.seek(0)
+                doc_templ.save(bio)
                 st.balloons()
-                st.success(f"Generated successfully for {name}")
-                st.download_button(
-                    label="📥 Download Word Document",
-                    data=bio,
-                    file_name=f"{category}_{name.replace(' ', '_')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                st.download_button("📥 Download Document", bio.getvalue(), f"{name}.docx")
             except Exception as e:
                 st.error(f"Error: {e}")
 
 # ==========================================
-# TAB 2: BULK PRISON UPDATER
+# TAB 2: BULK PRISON UPDATER (Keeps Angsana)
 # ==========================================
 with tab2:
     st.subheader("⚡ Bulk Date Swapper for Prison Letters")
-    st.info("Upload your old letters. The system will find the old dates and replace them with the new ones across all files.")
+    st.info("Replaces dates while preserving your original **Angsana New** font and size.")
 
     col_old, col_new = st.columns(2)
     with col_old:
-        st.markdown("**🔍 OLD CONTENT TO FIND**")
-        old_issue = st.text_input("Old Issue Date (exactly as in file)", placeholder="e.g., 12 April 2026")
-        old_visit = st.text_input("Old Visit Month/Date", placeholder="e.g., April 2026")
+        st.markdown("**🔍 FIND**")
+        old_issue = st.text_input("Old Issue Date", placeholder="e.g., 10 May 2026", key="old_i")
+        old_visit = st.text_input("Old Visit Date/Month", placeholder="e.g., May 2026", key="old_v")
     
     with col_new:
-        st.markdown("**🖋️ NEW CONTENT TO REPLACE**")
-        new_issue = st.text_input("New Issue Date", value=datetime.now().strftime("%d %B %Y"))
-        new_visit = st.text_input("New Visit Month/Date", placeholder="e.g., May 2026")
+        st.markdown("**🖋️ REPLACE**")
+        new_issue = st.text_input("New Issue Date", value=datetime.now().strftime("%d %B %Y"), key="new_i")
+        new_visit = st.text_input("New Visit Date/Month", placeholder="e.g., June 2026", key="new_v")
 
-    uploaded_prison_files = st.file_uploader("Upload all 50+ Prison Files", type="docx", accept_multiple_files=True)
+    uploaded_prison_files = st.file_uploader("Upload all .docx files", type=["docx"], accept_multiple_files=True)
 
-    if st.button("🚀 UPDATE ALL PRISON LETTERS"):
+    if st.button("🚀 BATCH UPDATE ALL LETTERS"):
         if not uploaded_prison_files or not old_issue or not new_issue:
-            st.warning("Please fill in the 'Find' and 'Replace' dates and upload files.")
+            st.warning("Please fill all date fields and upload files.")
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
                 for uploaded_file in uploaded_prison_files:
                     doc = Document(uploaded_file)
                     
-                    # Search and replace in paragraphs and tables
-                    for section in [doc.paragraphs] + [p for table in doc.tables for row in table.rows for cell in row.cells for p in cell.paragraphs]:
-                        for p in section if isinstance(section, list) else [section]:
-                            if old_issue in p.text:
-                                p.text = p.text.replace(old_issue, new_issue)
-                            if old_visit and old_visit in p.text:
-                                p.text = p.text.replace(old_visit, new_visit)
+                    # Function to replace text while preserving Run formatting (Font/Size)
+                    def safe_replace(paragraphs, old_text, new_text):
+                        for p in paragraphs:
+                            if old_text in p.text:
+                                for run in p.runs:
+                                    if old_text in run.text:
+                                        run.text = run.text.replace(old_text, new_text)
+
+                    # Replace in Paragraphs
+                    safe_replace(doc.paragraphs, old_issue, new_issue)
+                    if old_visit: safe_replace(doc.paragraphs, old_visit, new_visit)
+                    
+                    # Replace in Tables
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                safe_replace(cell.paragraphs, old_issue, new_issue)
+                                if old_visit: safe_replace(cell.paragraphs, old_visit, new_visit)
                     
                     out_stream = io.BytesIO()
                     doc.save(out_stream)
                     zip_file.writestr(uploaded_file.name, out_stream.getvalue())
 
-            st.success(f"✅ Successfully processed {len(uploaded_prison_files)} files!")
-            st.download_button(
-                label="📥 Download Updated Letters (ZIP)",
-                data=zip_buffer.getvalue(),
-                file_name=f"Updated_Prison_Letters_{new_visit}.zip",
-                mime="application/zip"
-            )
+            st.success(f"Batch update complete for {len(uploaded_prison_files)} files!")
+            st.download_button("📥 Download Updated ZIP", zip_buffer.getvalue(), f"Batch_Update_{new_visit}.zip")
