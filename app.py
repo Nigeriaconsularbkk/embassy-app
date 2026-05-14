@@ -144,65 +144,72 @@ with tab1:
                 st.error(f"Error: {e}")
 
 # ==========================================
-# TAB 2: BULK PRISON UPDATER (Thai Support & Angsana)
+# TAB 2: BULK PRISON UPDATER (Thai Script + Angsana New)
 # ==========================================
 with tab2:
-    st.subheader("⚡ Thai Letter Bulk Date Swapper")
-    st.info("Upload Thai documents. Replaces dates while forcing font back to **Angsana New (16pt)**.")
+    st.subheader("⚡ Thai Letter Bulk Date & Time Swapper")
+    st.info("💡 **Tip:** If the text doesn't change, copy the text directly from your Word file and paste it into the 'FIND' box.")
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("**🔍 FIND (OLD)**")
-        old_i = st.text_input("Old Issue Date (Thai or English)", placeholder="เช่น 1 พฤษภาคม 2569", key="ti_old_i")
-        old_v = st.text_input("Old Visit Date/Month", placeholder="เช่น พฤษภาคม 2569", key="ti_old_v")
+        st.markdown("**🔍 FIND (OLD CONTENT)**")
+        old_i = st.text_input("Old Issue Date", placeholder="เช่น 29 พฤษภาคม 2569", key="ti_old_i")
+        old_v = st.text_input("Old Visit Month", placeholder="เช่น พฤษภาคม 2569", key="ti_old_v")
+        old_t = st.text_input("Old Visit Time", placeholder="เช่น 10.00 – 15.00 น.", key="ti_old_t")
     
     with col_b:
-        st.markdown("**🖋️ REPLACE (NEW)**")
-        new_i = st.text_input("New Issue Date", placeholder="เช่น 1 มิถุนายน 2569", key="ti_new_i")
-        new_v = st.text_input("New Visit Date/Month", placeholder="เช่น มิถุนายน 2569", key="ti_new_v")
+        st.markdown("**🖋️ REPLACE (NEW CONTENT)**")
+        new_i = st.text_input("New Issue Date", placeholder="เช่น 14 มิถุนายน 2569", key="ti_new_i")
+        new_v = st.text_input("New Visit Month", placeholder="เช่น มิถุนายน 2569", key="ti_new_v")
+        new_t = st.text_input("New Visit Time", placeholder="เช่น 12.00 - 15.00 น.", key="ti_new_t")
 
     files = st.file_uploader("Upload Thai .docx files", type=["docx"], accept_multiple_files=True, key="bulk_up")
 
     if st.button("🚀 BATCH UPDATE ALL THAI LETTERS", key="btn_bulk"):
         if not files or not old_i or not new_i:
-            st.warning("Please enter the 'Find' and 'Replace' dates and upload files.")
+            st.warning("Please enter at least the Issue Date and upload files.")
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_f:
                 for f in files:
                     doc = Document(f)
                     
-                    def thai_safe_replace(paragraphs, old_txt, new_txt):
+                    def thai_safe_replace(paragraphs, find_txt, replace_txt):
+                        if not find_txt or not replace_txt:
+                            return
                         for p in paragraphs:
-                            if old_txt in p.text:
-                                # Replace the text
-                                updated_text = p.text.replace(old_txt, new_txt)
-                                # Clear and rewrite to fix run splits
+                            if find_txt in p.text:
+                                # Replace the text string
+                                updated_text = p.text.replace(find_txt, replace_txt)
+                                # Clear existing text and re-apply with specific Thai font settings
                                 p.text = ""
                                 run = p.add_run(updated_text)
-                                # Apply Angsana New for both Latin and Complex (Thai) script
+                                # Force Angsana New 16pt (Official Standard)
                                 run.font.name = 'Angsana New'
                                 run.font.size = Pt(16)
                                 r = run._element.rPr
+                                # These 4 settings ensure Thai script is forced to Angsana New
                                 r.get_or_add_rFonts().set(qn('w:eastAsia'), 'Angsana New')
                                 r.get_or_add_rFonts().set(qn('w:cs'), 'Angsana New')
                                 r.get_or_add_rFonts().set(qn('w:ascii'), 'Angsana New')
                                 r.get_or_add_rFonts().set(qn('w:hAnsi'), 'Angsana New')
 
-                    # Execute replacements
+                    # Process Paragraphs for all three fields
                     thai_safe_replace(doc.paragraphs, old_i, new_i)
-                    if old_v: thai_safe_replace(doc.paragraphs, old_v, new_v)
+                    thai_safe_replace(doc.paragraphs, old_v, new_v)
+                    thai_safe_replace(doc.paragraphs, old_t, new_t)
                     
-                    # Also check inside tables
+                    # Also check inside tables (Prisoner lists)
                     for table in doc.tables:
                         for row in table.rows:
                             for cell in row.cells:
                                 thai_safe_replace(cell.paragraphs, old_i, new_i)
-                                if old_v: thai_safe_replace(cell.paragraphs, old_v, new_v)
+                                thai_safe_replace(cell.paragraphs, old_v, new_v)
+                                thai_safe_replace(cell.paragraphs, old_t, new_t)
                     
                     out = io.BytesIO()
                     doc.save(out)
                     zip_f.writestr(f.name, out.getvalue())
 
-            st.success("Batch update complete!")
-            st.download_button("📥 Download Updated Thai ZIP", zip_buffer.getvalue(), f"Updated_Thai_Letters.zip")
+            st.success(f"Batch update complete for {len(files)} Thai letters!")
+            st.download_button("📥 Download Updated Thai ZIP", zip_buffer.getvalue(), f"Batch_Thai_Update.zip")
