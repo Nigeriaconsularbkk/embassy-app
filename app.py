@@ -160,6 +160,10 @@ with tab2:
                     update_next_issue = False
                     
                     for p in list(doc.paragraphs):
+                        # --- CUSTOM TITLE UPDATE FIND AND REPLACE ---
+                        if "รักษาราชการแทนอัครราชทูตไนจีเรียประจำประเทศไทย" in p.text:
+                            p.text = p.text.replace("รักษาราชการแทนอัครราชทูตไนจีเรียประจำประเทศไทย", "รักษาราชการแทนเอกอัครราชทูตไนจีเรียประจำประเทศไทย")
+
                         # 1. Update Reference Line (Align Left-on-Right)
                         if ref_id in p.text:
                             orig_ref = p.text.strip()
